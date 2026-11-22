@@ -750,8 +750,7 @@ async function init() {
   renderNav(); renderHome(); renderFooter(); updateCounts(); routeHash();
 }
 notificationControls=mountNotifications({auth,openAccount,toast});
-mountSupport({auth,openAccount,getProducts:()=>S.products});
-init();
+Promise.all([init(),auth.authStateReady()]).then(()=>mountSupport({auth,openAccount,getProducts:()=>S.products}));
 </script>
 <script src="pwa.js" defer></script>
 </body>
