@@ -6,7 +6,12 @@
 <meta name="theme-color" content="#073b29">
 <meta name="description" content="تسوّق منتجات حقيقية بتقييمات العملاء والدفع عند الاستلام.">
 <title>WESHAH — المتجر</title>
-<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="icon" href="4-favicon.png" type="image/png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="5-apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="WESHAH">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alexandria:wght@300;400;500;600;700;800&family=DM+Sans:wght@400;500;600;700;800&display=swap">
@@ -307,7 +312,8 @@ function paintBrand() {
   $('#brandName').textContent = name; $('#brandTag').textContent = c.tagline || 'DISCOVER MORE'; document.title = `${name} — المتجر`;
   $('#tlCur').textContent = `🇪🇬 مصر | ${cur()}`; $('#topTag').textContent = c.tagline || '';
   if (c.phone) { const a = $('#tlSupport'); a.hidden = false; a.href = 'https://wa.me/' + String(c.phone).replace(/\D/g, ''); }
-  const setLogo = src => { $('#mark').innerHTML = `<img src="${esc(src)}" alt="${esc(name)}">`; const f = $('link[rel=icon]'); if (f) f.href = src; };
+  const setLogo = src => { $('#mark').innerHTML = `<img src="${esc(src)}" alt="${esc(name)}">`; };
+  setLogo('/2-icon-512.png');
   if (c.logoImageId) chunkImage(c.logoImageId).then(setLogo).catch(() => {}); else if (safeUrl(c.logoUrl)) setLogo(c.logoUrl);
   const items = [c.announcement, c.freeOver > 0 ? `توصيل مجاني للطلبات فوق ${money(c.freeOver)}` : '', 'الدفع عند الاستلام', c.phone ? 'خدمة العملاء عبر واتساب' : ''].filter(Boolean);
   const an = $('#announce'); an.hidden = !items.length;
@@ -741,5 +747,6 @@ async function init() {
 }
 init();
 </script>
+<script src="pwa.js" defer></script>
 </body>
 </html>
