@@ -152,6 +152,7 @@ body[data-theme="dark"] .badge.o{color:#e2c68f}
 <div class="toast" id="toast" role="status"></div>
 
 <script type="module">
+import {mountOwnInvoices} from './customer-invoice-ui.js';
 // @ts-nocheck
 /* eslint-disable */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -607,18 +608,26 @@ function ordersHTML() {
       ${idx >= 0 && !trail.length ? `<div class="steps">${['تم الاستلام', 'قيد التجهيز', 'تم الشحن', 'تم التسليم'].map((x, i) => `<div class="${i <= idx ? 'on' : ''}"><i></i>${x}</div>`).join('')}</div>` : ''}
       ${o.customerNote ? `<div class="reply"><b>رسالة من المتجر:</b> ${esc(o.customerNote)}</div>` : ''}
       ${trail.length ? `<ul class="tl">${trail.map(t => `<li><b>${esc(t.name)}</b> <span class="muted">${t.at ? fmtDate(t.at) : ''}</span>${t.public && t.note ? `<div class="nt">${esc(t.note)}</div>` : ''}</li>`).join('')}</ul>` : ''}
-      <div class="it">${(o.items || []).map(i => `${esc(i.name)} × ${num(i.qty)}`).join(' · ')}</div><div class="sumr t" style="margin-top:6px"><span>الإجمالي</span><span>${money(num(o.total))}</span></div></div>`; }).join('');
+      <div class="it">${(o.items || []).map(i => `${esc(i.name)} × ${num(i.qty)}`).join(' · ')}</div><div class="sumr t" style="margin-top:6px"><span>الإجمالي</span><span>${money(num(o.total))}</span></div><button type="button" class="btn btn-outline" style="margin-top:10px" data-act="invoice" data-id="${esc(o.id)}">عرض الفاتورة / طباعة</button></div>`; }).join('');
 }
 async function loadMyOrders(force) {
   const account = S.user; if (!account) return; if (S.ordersLoaded && !force) return;
   const uid = account.uid;
-  try { const snap = await getDocsFromServer(query(collection(db, 'orders'), where('uid', '==', uid))); if (auth.currentUser?.uid !== uid || S.user?.uid !== uid) return; S.myOrders = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0)); S.ordersLoaded = true; S.ordersError = false; }
+  try { const snap = await getDocsFromServer(query(collection(db, 'orders'), where('uid', '==', uid))); if (auth.currentUser?.uid !== uid || S.user?.uid !== uid) return; S.myOrders = snap.docs.map(d => ({ ...d.data(), id: d.id })).sort((a, b) => (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0)); S.ordersLoaded = true; S.ordersError = false; }
   catch (e) { if (auth.currentUser?.uid !== uid || S.user?.uid !== uid) return; console.warn('orders', e); S.ordersLoaded = true; S.ordersError = true; S.myOrders = []; }
   if ($('#accountModal.show')) drawAccount();
 }
 let authGeneration = 0;
+const ownInvoices = mountOwnInvoices({
+  getIdentity:()=>auth.currentUser?.uid && auth.currentUser.uid===S.user?.uid ? {uid:auth.currentUser.uid,generation:authGeneration}:null,
+  readOrder:async id=>{const snap=await getDocFromServer(doc(db,'orders',id));return snap.exists()?snap.data():null;},
+  getKnownIds:()=>S.ordersLoaded&&!S.ordersError?S.myOrders.filter(o=>o.uid===S.user?.uid).map(o=>o.id):[],
+  getBrand:()=>({name:S.cfg.siteNameAr||S.cfg.siteNameEn||'WESHAH',currency:cur()}),
+  onError:message=>toast(message,'error')
+});
 onAuthStateChanged(auth, async u => {
   const generation = ++authGeneration;
+  ownInvoices.clear();
   S.user = u; S.authReady = true; S.profile = null; S.myOrders = []; S.ordersLoaded = false; S.ordersError = false;
   if (u) { try { const sn = await getDocFromServer(doc(db, 'customers', u.uid)); if (generation !== authGeneration || auth.currentUser?.uid !== u.uid) return; if (sn.exists()) S.profile = sn.data(); } catch (_) {} }
   if (generation !== authGeneration || (auth.currentUser?.uid || null) !== (u?.uid || null)) return;
@@ -641,6 +650,7 @@ const A = {
   clear: () => { S.F = { q: '', cat: '', brand: '', deals: false, sort: S.F.sort }; $('#searchInput').value = ''; renderGrid(); },
   more: () => { S.shown += 24; renderGrid(); },
   open: id => openProduct(id),
+  invoice: id => ownInvoices.open(id),
   closemodal: closeProductModal, closeall: closeAll, closeaccount: closeAccount, closeinfo: () => { $('#infoModal').classList.remove('show'); if (!$('.modal.show')) document.body.classList.remove('lock'); },
   add: id => { const p = S.byId.get(id); if (!p) return; if (needsOptions(p)) openProduct(id); else addToCart(id); },
   wish: (id) => { if (S.wish.has(id)) { S.wish.delete(id); toast('تمت الإزالة من المفضلة'); } else { S.wish.add(id); toast('أُضيف إلى المفضلة'); } saveWish(); renderGrid(); if (PV) drawProduct(); if ($('#wishDrawer.show')) showWishlist(); },
