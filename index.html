@@ -116,6 +116,7 @@ body[data-theme="dark"] .btn-outline{color:#e7d5b1;border-color:#405344}
 body[data-theme="dark"] .btn-dark{background:#1b6247}
 body[data-theme="dark"] .badge.o{color:#e2c68f}
 @media(max-width:680px){.announce{height:33px}.ticker-track{font-size:9px;gap:25px;animation-duration:27s}.theme-toggle{grid-column:auto}.mark svg{width:26px;height:26px}}
+@media(max-width:680px){.actions{gap:6px}.actions .iconbtn{padding:3px}.head{gap:8px}.brand{font-size:19px}.logo{gap:7px}}
 @media(prefers-reduced-motion:reduce){.ticker-track{animation-duration:90s}}
 @media print{header,footer,.announce,.topline,.mobilebar,.drawer,.overlay{display:none!important}}
 </style>
@@ -164,6 +165,8 @@ const app = initializeApp({
   storageBucket: "matrgar-bf3d1.firebasestorage.app", messagingSenderId: "195064511513", appId: "1:195064511513:web:6b3a83ee0391b70199fe88", measurementId: "G-VCWVL38B8F"
 });
 const db = getFirestore(app), auth = getAuth(app);
+import {mountNotifications} from './notifications.js';
+let notificationControls;
 
 /* ================= أدوات ================= */
 const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -657,7 +660,7 @@ const A = {
   checkout: () => startCheckout(), backcart: () => { cartStep = 'cart'; drawCart(); },
   /* الحساب */
   atab: id => { acctTab = id; drawAccount(); if (id === 'orders') loadMyOrders(); },
-  logout: async () => { await signOut(auth); toast('تم تسجيل الخروج'); closeAccount(); },
+  logout: async () => { await notificationControls?.beforeLogout(); await signOut(auth); toast('تم تسجيل الخروج'); closeAccount(); },
   resetpw: async () => { const email = $('#auEmail')?.value.trim(); if (!email) return $('#authErr').textContent = 'اكتب بريدك أولًا ثم اضغط «نسيت كلمة المرور»'; try { await sendPasswordResetEmail(auth, email); toast('✓ أرسلنا رابط إعادة التعيين إلى بريدك'); } catch (e) { $('#authErr').textContent = authMsg(e); } }
 };
 document.addEventListener('click', async e => {
@@ -745,8 +748,9 @@ async function init() {
   if (p.status === 'rejected') { $('#main').innerHTML = '<div class="wrap"><div class="empty">تعذّر تحميل المنتجات — تحقق من الاتصال أو من قواعد Firestore.</div></div>'; renderFooter(); return; }
   renderNav(); renderHome(); renderFooter(); updateCounts(); routeHash();
 }
+notificationControls=mountNotifications({auth,openAccount,toast});
 init();
 </script>
 <script src="pwa.js" defer></script>
 </body>
-</html>
+                                                                                                                                                                                          </html>
