@@ -166,6 +166,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app), auth = getAuth(app);
 import {mountNotifications} from './notifications.js';
+import {mountSupport} from './support.js';
 let notificationControls;
 
 /* ================= أدوات ================= */
@@ -749,8 +750,9 @@ async function init() {
   renderNav(); renderHome(); renderFooter(); updateCounts(); routeHash();
 }
 notificationControls=mountNotifications({auth,openAccount,toast});
+if(new URLSearchParams(location.search).get('support')==='1')mountSupport({auth,openAccount,getProducts:()=>S.products});
 init();
 </script>
 <script src="pwa.js" defer></script>
 </body>
-                                                                                                                                                                                          </html>
+ </html>
