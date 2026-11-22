@@ -155,7 +155,7 @@ body[data-theme="dark"] .badge.o{color:#e2c68f}
 // @ts-nocheck
 /* eslint-disable */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, runTransaction, increment, serverTimestamp }
+import { getFirestore, collection, doc, getDoc, getDocFromServer, getDocs, getDocsFromServer, setDoc, addDoc, updateDoc, query, where, runTransaction, increment, serverTimestamp }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, updateProfile }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -192,7 +192,7 @@ const S = {
   products: [], byId: new Map(), reviews: [], revBy: new Map(), questions: [], coupons: [],
   cart: lsGet('weshah_cart', []), wish: new Set(lsGet('weshah_wish', [])), couponCode: lsGet('weshah_coupon', ''),
   F: { q: '', cat: '', brand: '', deals: false, sort: 'featured' }, shown: 24, loaded: false,
-  user: null, profile: null, myOrders: [], ordersLoaded: false, authReady: false
+  user: null, profile: null, myOrders: [], ordersLoaded: false, ordersError: false, authReady: false
 };
 const cur = () => S.cfg.currency || 'ج.م';
 const nf = new Intl.NumberFormat('ar-EG', { maximumFractionDigits: 2 });
@@ -568,8 +568,9 @@ async function placeOrder(form) {
 /* ================= الحساب والطلبات ================= */
 const AUTH_ERR = { 'auth/email-already-in-use': 'هذا البريد مسجّل بالفعل — سجّل الدخول', 'auth/invalid-email': 'البريد الإلكتروني غير صحيح', 'auth/weak-password': 'كلمة المرور ضعيفة (6 أحرف على الأقل)', 'auth/invalid-credential': 'البريد أو كلمة المرور غير صحيحة', 'auth/user-not-found': 'لا يوجد حساب بهذا البريد', 'auth/wrong-password': 'كلمة المرور غير صحيحة', 'auth/too-many-requests': 'محاولات كثيرة — انتظر قليلًا ثم حاول', 'auth/network-request-failed': 'تعذّر الاتصال بالإنترنت', 'auth/operation-not-allowed': 'تسجيل البريد/كلمة المرور غير مفعّل — فعّله من Firebase Console › Authentication' };
 const authMsg = e => AUTH_ERR[e.code] || e.message || 'حدث خطأ';
-let acctTab = 'login', acctAfterLogin = false;
+let acctTab = 'login', acctAfterLogin = false, acctReturnTab = null;
 function openAccount(tab, afterLogin) {
+  acctReturnTab = !S.user && ['profile','orders'].includes(tab) ? tab : null;
   acctAfterLogin = !!afterLogin; acctTab = tab || (S.user ? 'profile' : 'login'); drawAccount();
   $('#accountModal').classList.add('show'); document.body.classList.add('lock');
   if (S.user) loadMyOrders();
@@ -597,6 +598,7 @@ function drawAccount() {
       <div style="display:flex;gap:8px"><button class="btn btn-dark" type="submit" style="flex:1">حفظ بياناتي</button><button type="button" class="btn btn-outline" data-act="logout">تسجيل الخروج</button></div></form>`}`;
 }
 function ordersHTML() {
+  if (S.ordersError) return '<div class="empty" style="padding:24px">تعذّر قراءة طلباتك الآن. لم نعرض طلبات حساب آخر.<br><br><button type="button" class="btn btn-dark" data-act="reloadorders">إعادة القراءة</button></div>';
   if (!S.ordersLoaded) return '<div class="skel" style="height:120px"></div>';
   if (!S.myOrders.length) return '<div class="empty" style="padding:30px">لا توجد طلبات بعد.<br><br><button type="button" class="btn btn-dark" data-act="closeaccount">ابدأ التسوّق</button></div>';
   return S.myOrders.map(o => { const st = ['pending', 'processing', 'shipped', 'completed', 'cancelled', 'refunded'].includes(o.status) ? o.status : 'pending', [lb, cl] = STAT[st], flow = ['pending', 'processing', 'shipped', 'completed'], idx = flow.indexOf(st);
@@ -608,14 +610,18 @@ function ordersHTML() {
       <div class="it">${(o.items || []).map(i => `${esc(i.name)} × ${num(i.qty)}`).join(' · ')}</div><div class="sumr t" style="margin-top:6px"><span>الإجمالي</span><span>${money(num(o.total))}</span></div></div>`; }).join('');
 }
 async function loadMyOrders(force) {
-  if (!S.user) return; if (S.ordersLoaded && !force) return;
-  try { const snap = await getDocs(query(collection(db, 'orders'), where('uid', '==', S.user.uid))); S.myOrders = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0)); S.ordersLoaded = true; }
-  catch (e) { console.warn('orders', e); S.ordersLoaded = true; S.myOrders = []; toast('تعذّر تحميل طلباتك — تحقق من قواعد Firestore', true); }
+  const account = S.user; if (!account) return; if (S.ordersLoaded && !force) return;
+  const uid = account.uid;
+  try { const snap = await getDocsFromServer(query(collection(db, 'orders'), where('uid', '==', uid))); if (auth.currentUser?.uid !== uid || S.user?.uid !== uid) return; S.myOrders = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0)); S.ordersLoaded = true; S.ordersError = false; }
+  catch (e) { if (auth.currentUser?.uid !== uid || S.user?.uid !== uid) return; console.warn('orders', e); S.ordersLoaded = true; S.ordersError = true; S.myOrders = []; }
   if ($('#accountModal.show')) drawAccount();
 }
+let authGeneration = 0;
 onAuthStateChanged(auth, async u => {
-  S.user = u; S.authReady = true; S.profile = null; S.myOrders = []; S.ordersLoaded = false;
-  if (u) { try { const sn = await getDoc(doc(db, 'customers', u.uid)); if (sn.exists()) S.profile = sn.data(); } catch (_) {} }
+  const generation = ++authGeneration;
+  S.user = u; S.authReady = true; S.profile = null; S.myOrders = []; S.ordersLoaded = false; S.ordersError = false;
+  if (u) { try { const sn = await getDocFromServer(doc(db, 'customers', u.uid)); if (generation !== authGeneration || auth.currentUser?.uid !== u.uid) return; if (sn.exists()) S.profile = sn.data(); } catch (_) {} }
+  if (generation !== authGeneration || (auth.currentUser?.uid || null) !== (u?.uid || null)) return;
   $('#acctLabel').textContent = u ? ((S.profile?.name || u.displayName || 'حسابي').split(' ')[0]) : 'حسابي';
   if ($('#accountModal.show')) { drawAccount(); if (u) loadMyOrders(); }
   if ($('#cartDrawer.show')) drawCart();
@@ -661,6 +667,7 @@ const A = {
   checkout: () => startCheckout(), backcart: () => { cartStep = 'cart'; drawCart(); },
   /* الحساب */
   atab: id => { acctTab = id; drawAccount(); if (id === 'orders') loadMyOrders(); },
+  reloadorders: () => loadMyOrders(true),
   logout: async () => { await notificationControls?.beforeLogout(); await signOut(auth); toast('تم تسجيل الخروج'); closeAccount(); },
   resetpw: async () => { const email = $('#auEmail')?.value.trim(); if (!email) return $('#authErr').textContent = 'اكتب بريدك أولًا ثم اضغط «نسيت كلمة المرور»'; try { await sendPasswordResetEmail(auth, email); toast('✓ أرسلنا رابط إعادة التعيين إلى بريدك'); } catch (e) { $('#authErr').textContent = authMsg(e); } }
 };
@@ -692,7 +699,10 @@ document.addEventListener('submit', async e => {
       if (reg) { const cr = await createUserWithEmailAndPassword(auth, email, pass); try { await updateProfile(cr.user, { displayName: name }); } catch (_) {} await setDoc(doc(db, 'customers', cr.user.uid), { uid: cr.user.uid, name, phone, email, createdAt: serverTimestamp(), ordersCount: 0 }, { merge: true }); S.profile = { name, phone, email }; }
       else await signInWithEmailAndPassword(auth, email, pass);
       toast(reg ? '✓ تم إنشاء حسابك' : '✓ تم تسجيل الدخول');
-      const after = acctAfterLogin; closeAccount(); if (after) { cartStep = 'checkout'; setTimeout(() => { drawCart(); openDrawer('cartDrawer'); }, 250); }
+      const after = acctAfterLogin, returnTab = acctReturnTab; acctReturnTab = null;
+      if (after) { closeAccount(); cartStep = 'checkout'; setTimeout(() => { drawCart(); openDrawer('cartDrawer'); }, 250); }
+      else if (returnTab) { acctTab = returnTab; drawAccount(); if (returnTab === 'orders') loadMyOrders(true); }
+      else closeAccount();
     } catch (err) { $('#authErr').textContent = authMsg(err); btn.disabled = false; }
     return;
   }
@@ -750,7 +760,13 @@ async function init() {
   renderNav(); renderHome(); renderFooter(); updateCounts(); routeHash();
 }
 notificationControls=mountNotifications({auth,openAccount,toast});
-Promise.all([init(),auth.authStateReady()]).then(()=>mountSupport({auth,openAccount,getProducts:()=>S.products}));
+Promise.all([init(),auth.authStateReady()]).then(async()=>{
+  if(new URLSearchParams(location.search).get('chat-preview')==='1'){
+    const {mountConversationPreview}=await import('./chat-preview.js');
+    mountConversationPreview({auth,openAccount,getProducts:()=>S.products,subscribeAuth:cb=>onAuthStateChanged(auth,cb),getProfile:async()=>{const account=auth.currentUser;if(!account)throw Error('Sign in first');const sn=await getDocFromServer(doc(db,'customers',account.uid));if(auth.currentUser?.uid!==account.uid)throw Error('Account changed');if(!sn.exists())throw Error('Profile unavailable');const p=sn.data();return {name:p.name||account.displayName||'',email:account.email||'',phone:p.phone||'',city:p.city||'',address:p.address||''};}});
+  }else mountSupport({auth,openAccount,getProducts:()=>S.products});
+  if(new URLSearchParams(location.search).get('orders')==='1')openAccount('orders');
+});
 </script>
 <script src="pwa.js" defer></script>
 </body>
