@@ -120,6 +120,7 @@ body[data-theme="dark"] .badge.o{color:#e2c68f}
 @media(prefers-reduced-motion:reduce){.ticker-track{animation-duration:90s}}
 @media print{header,footer,.announce,.topline,.mobilebar,.drawer,.overlay{display:none!important}}
 </style>
+<link rel="stylesheet" href="./egypt-address.css">
 </head>
 <body data-theme="light">
 <div class="announce" id="announce" aria-label="آخر الأخبار" hidden><div class="ticker-track" id="ticker"></div></div>
@@ -168,6 +169,8 @@ const app = initializeApp({
 const db = getFirestore(app), auth = getAuth(app);
 import {mountNotifications} from './notifications.js';
 import {mountSupport} from './support.js';
+import {mountProfileEditor} from './profile-editor.mjs';
+let profileControls;
 let notificationControls;
 
 /* ================= أدوات ================= */
@@ -317,7 +320,12 @@ function paintBrand() {
   $('#brandName').textContent = name; $('#brandTag').textContent = c.tagline || 'DISCOVER MORE'; document.title = `${name} — المتجر`;
   $('#tlCur').textContent = `🇪🇬 مصر | ${cur()}`; $('#topTag').textContent = c.tagline || '';
   if (c.phone) { const a = $('#tlSupport'); a.hidden = false; a.href = 'https://wa.me/' + String(c.phone).replace(/\D/g, ''); }
-  const setLogo = src => { $('#mark').innerHTML = `<img src="${esc(src)}" alt="${esc(name)}">`; };
+  const setLogo = src => {
+    const markup = `<img src="${esc(src)}" alt="${esc(name)}">`;
+    $('#mark').innerHTML = markup;
+    const footerMark = $('#footGrid .footbrand .mark');
+    if (footerMark) footerMark.innerHTML = markup;
+  };
   setLogo('/2-icon-512.png');
   if (c.logoImageId) chunkImage(c.logoImageId).then(setLogo).catch(() => {}); else if (safeUrl(c.logoUrl)) setLogo(c.logoUrl);
   const items = [c.announcement, c.freeOver > 0 ? `توصيل مجاني للطلبات فوق ${money(c.freeOver)}` : '', 'الدفع عند الاستلام', c.phone ? 'خدمة العملاء عبر واتساب' : ''].filter(Boolean);
@@ -585,7 +593,7 @@ function drawAccount() {
     const reg = acctTab === 'register';
     box.innerHTML = `<h2 style="font-size:20px;margin:6px 0">مرحبًا بك في ${esc(name)}</h2><p class="muted" style="font-size:10.5px;line-height:2;margin:0">${acctAfterLogin ? 'سجّل الدخول أو أنشئ حسابًا لإتمام طلبك — سلتك محفوظة.' : 'سجّل الدخول لتتابع طلباتك وتكتب تقييماتك.'}</p>
       <div class="authtabs"><button type="button" class="${!reg ? 'on' : ''}" data-act="atab" data-id="login">تسجيل الدخول</button><button type="button" class="${reg ? 'on' : ''}" data-act="atab" data-id="register">حساب جديد</button></div>
-      <form id="authForm" novalidate>${reg ? `<div class="fld" id="afN"><label>الاسم *</label><input id="auName" autocomplete="name"><div class="em">اكتب اسمك</div></div><div class="fld" id="afP"><label>رقم الموبايل *</label><input id="auPhone" inputmode="tel" dir="ltr" style="text-align:right" autocomplete="tel"><div class="em">أدخل رقمًا صحيحًا</div></div>` : ''}
+      <form id="authForm" novalidate>${reg ? `<div class="fld" id="afN"><label>الاسم بالكامل *</label><input id="auName" autocomplete="name"><div class="em">اكتب اسمك</div></div><div class="fld" id="afP"><label>رقم الموبايل *</label><input id="auPhone" inputmode="tel" dir="ltr" style="text-align:right" autocomplete="tel"><div class="em">أدخل رقمًا صحيحًا</div></div>` : ''}
       <div class="fld" id="afE"><label>البريد الإلكتروني *</label><input id="auEmail" type="email" dir="ltr" style="text-align:right" autocomplete="email"><div class="em">أدخل بريدًا صحيحًا</div></div>
       <div class="fld" id="afW"><label>كلمة المرور *</label><input id="auPass" type="password" autocomplete="${reg ? 'new-password' : 'current-password'}"><div class="em">6 أحرف على الأقل</div></div>
       <div id="authErr" class="neg" style="font-size:10.5px;margin-bottom:8px"></div><button class="btn btn-dark" style="width:100%" type="submit" id="authBtn">${reg ? 'إنشاء الحساب' : 'تسجيل الدخول'}</button>
@@ -593,7 +601,7 @@ function drawAccount() {
     return;
   }
   const p = S.profile || {}, t = acctTab === 'orders' ? 'orders' : 'profile';
-  box.innerHTML = `<h2 style="font-size:20px;margin:6px 0">أهلًا ${esc((p.name || S.user.displayName || '').split(' ')[0] || 'بك')} 👋</h2><div class="muted" style="font-size:10px" dir="ltr" style="text-align:right">${esc(S.user.email || '')}</div>
+  box.innerHTML = `<h2 style="font-size:20px;margin:6px 0">أهلًا ${esc((p.name || S.user.displayName || '').split(' ')[0] || 'بك')}</h2><div class="muted" style="font-size:10px" dir="ltr" style="text-align:right">${esc(S.user.email || '')}</div>
     <div class="authtabs"><button type="button" class="${t === 'orders' ? 'on' : ''}" data-act="atab" data-id="orders">طلباتي</button><button type="button" class="${t === 'profile' ? 'on' : ''}" data-act="atab" data-id="profile">بياناتي</button></div>
     ${t === 'orders' ? ordersHTML() : `<form id="profForm" novalidate><div class="fld"><label>الاسم</label><input id="prName" value="${esc(p.name || S.user.displayName || '')}"></div><div class="row2"><div class="fld"><label>الموبايل</label><input id="prPhone" dir="ltr" style="text-align:right" value="${esc(p.phone || '')}"></div><div class="fld"><label>المدينة</label><input id="prCity" value="${esc(p.city || '')}"></div></div><div class="fld"><label>العنوان</label><textarea id="prAddr" rows="2">${esc(p.address || '')}</textarea></div>
       <div style="display:flex;gap:8px"><button class="btn btn-dark" type="submit" style="flex:1">حفظ بياناتي</button><button type="button" class="btn btn-outline" data-act="logout">تسجيل الخروج</button></div></form>`}`;
@@ -629,7 +637,7 @@ onAuthStateChanged(auth, async u => {
   const generation = ++authGeneration;
   ownInvoices.clear();
   S.user = u; S.authReady = true; S.profile = null; S.myOrders = []; S.ordersLoaded = false; S.ordersError = false;
-  if (u) { try { const sn = await getDocFromServer(doc(db, 'customers', u.uid)); if (generation !== authGeneration || auth.currentUser?.uid !== u.uid) return; if (sn.exists()) S.profile = sn.data(); } catch (_) {} }
+  if (u) { const profileVersion=profileControls?.revision??0; try { const sn = await getDocFromServer(doc(db, 'customers', u.uid)); if (generation !== authGeneration || auth.currentUser?.uid !== u.uid) return; if (sn.exists() && profileVersion===(profileControls?.revision??0)) S.profile = sn.data(); } catch (_) {} }
   if (generation !== authGeneration || (auth.currentUser?.uid || null) !== (u?.uid || null)) return;
   $('#acctLabel').textContent = u ? ((S.profile?.name || u.displayName || 'حسابي').split(' ')[0]) : 'حسابي';
   if ($('#accountModal.show')) { drawAccount(); if (u) loadMyOrders(); }
@@ -642,9 +650,9 @@ let hearts;
 const A = {
   theme: () => setTheme(document.body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'),
   top: () => window.scrollTo({ top: 0, behavior: 'smooth' }),
-  goto: (id, el) => { if (el && el.dataset.clear) { S.F = { q: '', cat: '', brand: '', deals: false, sort: 'featured' }; $('#searchInput').value = ''; S.shown = 24; renderGrid(); } closeAll(); $('#' + id)?.scrollIntoView({ behavior: 'smooth' }); },
+  goto: (id, el) => { if (el && el.dataset.clear) { S.F = { q: '', cat: '', brand: '', deals: false, sort: 'featured' }; $('#searchInput').value = ''; S.shown = 24; renderGrid(); } closeAll(); const target = id === 'categories' && !$('#categories') ? $('#shop') : $('#' + id); target?.scrollIntoView({ behavior: 'smooth' }); },
   cat: id => { S.F = { ...S.F, cat: id, brand: '', q: '', deals: false }; $('#searchInput').value = ''; S.shown = 24; renderGrid(); $('#shop')?.scrollIntoView({ behavior: 'smooth' }); },
-  brand: id => { S.F = { ...S.F, brand: id, cat: '', q: '', deals: false }; S.shown = 24; renderGrid(); $('#shop')?.scrollIntoView({ behavior: 'smooth' }); },
+  brand: id => { S.F = { ...S.F, brand: id, cat: '', q: '', deals: false }; $('#searchInput').value = ''; S.shown = 24; renderGrid(); $('#shop')?.scrollIntoView({ behavior: 'smooth' }); },
   deals: () => { S.F = { ...S.F, deals: !S.F.deals }; S.shown = 24; renderGrid(); $('#shop')?.scrollIntoView({ behavior: 'smooth' }); },
   newest: () => { S.F = { ...S.F, sort: 'new' }; S.shown = 24; renderGrid(); $('#shop')?.scrollIntoView({ behavior: 'smooth' }); },
   clear: () => { S.F = { q: '', cat: '', brand: '', deals: false, sort: S.F.sort }; $('#searchInput').value = ''; renderGrid(); },
@@ -701,26 +709,24 @@ document.addEventListener('submit', async e => {
   if (f === 'coForm') return placeOrder(e.target);
   if (f === 'newsForm') { const em = $('input', e.target).value.trim().toLowerCase(); try { await setDoc(doc(db, 'subscribers', encodeURIComponent(em)), { email: em, createdAt: serverTimestamp() }, { merge: true }); toast('شكرًا لاشتراكك!'); e.target.reset(); } catch (_) { toast('تعذّر الاشتراك الآن', true); } return; }
   if (f === 'authForm') {
-    const reg = acctTab === 'register', email = $('#auEmail').value.trim(), pass = $('#auPass').value, name = reg ? $('#auName').value.trim() : '', phone = reg ? $('#auPhone').value.replace(/\D/g, '') : '';
-    const bad = { afE: !/^\S+@\S+\.\S+$/.test(email), afW: pass.length < 6, ...(reg ? { afN: name.length < 2, afP: phone.length < 10 } : {}) };
+    if (acctTab === 'register') return profileControls.submitRegistration(e.target);
+    const email = $('#auEmail').value.trim(), pass = $('#auPass').value;
+    const bad = { afE: !/^\S+@\S+\.\S+$/.test(email), afW: pass.length < 6 };
     Object.entries(bad).forEach(([k, v]) => $('#' + k)?.classList.toggle('err', v)); if (Object.values(bad).some(Boolean)) return;
     const btn = $('#authBtn'); btn.disabled = true; $('#authErr').textContent = '';
     try {
-      if (reg) { const cr = await createUserWithEmailAndPassword(auth, email, pass); try { await updateProfile(cr.user, { displayName: name }); } catch (_) {} await setDoc(doc(db, 'customers', cr.user.uid), { uid: cr.user.uid, name, phone, email, createdAt: serverTimestamp(), ordersCount: 0 }, { merge: true }); S.profile = { name, phone, email }; }
-      else await signInWithEmailAndPassword(auth, email, pass);
-      toast(reg ? '✓ تم إنشاء حسابك' : '✓ تم تسجيل الدخول');
+      const signedIn=await signInWithEmailAndPassword(auth, email, pass);
+      if(auth.currentUser?.uid!==signedIn.user.uid)return;
+      const signedInUid=signedIn.user.uid;
+      toast('✓ تم تسجيل الدخول');
       const after = acctAfterLogin, returnTab = acctReturnTab; acctReturnTab = null;
-      if (after) { closeAccount(); cartStep = 'checkout'; setTimeout(() => { drawCart(); openDrawer('cartDrawer'); }, 250); }
+      if (after) { closeAccount(); cartStep = 'checkout'; setTimeout(() => { if(auth.currentUser?.uid!==signedInUid)return;drawCart(); openDrawer('cartDrawer'); }, 250); }
       else if (returnTab) { acctTab = returnTab; drawAccount(); if (returnTab === 'orders') loadMyOrders(true); }
       else closeAccount();
-    } catch (err) { $('#authErr').textContent = authMsg(err); btn.disabled = false; }
+    } catch (err) { const error=$('#authErr');if(error)error.textContent = authMsg(err); if(btn.isConnected)btn.disabled = false; }
     return;
   }
-  if (f === 'profForm') {
-    const d = { name: $('#prName').value.trim(), phone: $('#prPhone').value.replace(/\D/g, ''), city: $('#prCity').value.trim(), address: $('#prAddr').value.trim() };
-    try { await setDoc(doc(db, 'customers', S.user.uid), { uid: S.user.uid, email: S.user.email || '', ...d }, { merge: true }); S.profile = { ...(S.profile || {}), ...d }; $('#acctLabel').textContent = (d.name || 'حسابي').split(' ')[0]; toast('✓ تم حفظ بياناتك'); } catch (_) { toast('تعذّر الحفظ', true); }
-    return;
-  }
+  if (f === 'profForm') return profileControls.saveProfileForm(e.target);
   if (f === 'rvForm' && PV) {
     if (!S.user) return needLogin('سجّل الدخول لتكتب تقييمك');
     const text = $('#rvText').value.trim(), title = $('#rvTitle').value.trim(), name = (S.profile?.name || S.user.displayName || 'عميل').trim();
@@ -769,6 +775,24 @@ async function init() {
   if (p.status === 'rejected') { $('#main').innerHTML = '<div class="wrap"><div class="empty">تعذّر تحميل المنتجات — تحقق من الاتصال أو من قواعد Firestore.</div></div>'; renderFooter(); return; }
   renderNav(); renderHome(); renderFooter(); updateCounts(); routeHash();
 }
+profileControls=mountProfileEditor({
+ auth,subscribeAuth:cb=>onAuthStateChanged(auth,cb),
+ createAccount:(email,password)=>createUserWithEmailAndPassword(auth,email,password),
+ getProfile:()=>S.profile,
+ onAccountChange:()=>{if($('#accountModal.show'))drawAccount();},
+ onIncomplete:uid=>{if(auth.currentUser?.uid!==uid)return;S.user=auth.currentUser;acctTab='profile';drawAccount();$('#accountModal').classList.add('show');document.body.classList.add('lock');},
+ onSaved:(profile,{newAccount})=>{
+  if(auth.currentUser?.uid!==profile.uid)return;
+  S.user=auth.currentUser;S.profile={...(S.profile||{}),...profile};$('#acctLabel').textContent=(profile.name||'حسابي').split(' ')[0];
+  if(newAccount){
+   toast('✓ تم إنشاء حسابك وحفظ بياناتك');
+   const after=acctAfterLogin,returnTab=acctReturnTab;acctReturnTab=null;
+   if(after){closeAccount();cartStep='checkout';const uid=profile.uid;setTimeout(()=>{if(auth.currentUser?.uid!==uid)return;drawCart();openDrawer('cartDrawer');},250);}
+   else if(returnTab){acctTab=returnTab;drawAccount();if(returnTab==='orders')loadMyOrders(true);}
+   else closeAccount();
+  }else{toast('✓ تم حفظ بياناتك');if($('#accountModal.show')){acctTab='profile';drawAccount();}}
+ }
+});
 notificationControls=mountNotifications({auth,openAccount,toast});
 Promise.all([init(),auth.authStateReady()]).then(async()=>{
   if(new URLSearchParams(location.search).get('chat-preview')==='1'){
